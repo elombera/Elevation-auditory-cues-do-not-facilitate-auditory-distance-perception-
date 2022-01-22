@@ -42,7 +42,7 @@ We try to be as thorough as we could when writting this file and its code but in
 ## Data preparation
 #### Results table.
 ```{r rows.print=6,message=FALSE, warning=FALSE}
-results_tbl <- read_csv("./data/results.csv")
+results_tbl <- read_csv("./results.csv")
 results_tbl
 ```
 
