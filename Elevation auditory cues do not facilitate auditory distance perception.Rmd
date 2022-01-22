@@ -1,0 +1,303 @@
+---
+title: "Elevation auditory cues do not facilitate auditory distance perception"
+author: "Lombera E., Guevara M. and Vergara R."
+date: "1/22/2022"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    theme: united
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lme4)
+library(nlme)
+library(lmerTest)
+library(emmeans)
+library(jtools)
+library(broom)
+library(ggstatsplot)
+library(gmodels)
+library(ggpubr)
+library(Routliers)
+
+rm(list=ls())
+```
+
+## Introduction
+
+This document goes along with the paper. Along with the data ([link](https://osf.io/n7f9u/)) you will be able to replicate all the analysis and figures in the paper.
+
+Please note that not all the code will be hidden by default in the html file (just to keep things more readable) but it can be show just by clicking the code toggle button.
+
+We try to be as thorough as we could when writting this file and its code but in case you have any question suggestion or (god forbids) corection, do not hessitate to contact the authors [here](mailto:elombera@uvq.edu.ar).
+
+## Data preparation
+#### Results table.
+```{r rows.print=6,message=FALSE, warning=FALSE}
+results_tbl <- read_csv("./data/results.csv")
+results_tbl
+```
+
+## Outliers
+```{r rows.print=1,message=FALSE, warning=FALSE}
+# 1 - Relative bias
+
+tabla.ind.Eye <- results_tbl %>% 
+  filter(condition == "Ear level") %>% 
+  group_by(subject,condition) %>%
+  summarise(mSesgoRel  = mean(rel_bias,na.rm=TRUE))  %>%
+  ungroup()
+res3 <- outliers_mad(x = tabla.ind.Eye$mSesgoRel ,na.rm=TRUE)
+#plot_outliers_mad(res3,x=tabla.ind.Eye$mSesgoRel,pos_display=TRUE)
+tabla.ind.Eye[res3$outliers_pos,] 
+
+tabla.ind.Floor <- results_tbl %>% 
+  filter(condition == "Floor level") %>% 
+  group_by(subject,condition) %>%
+  summarise(mSesgoRel  = mean(rel_bias,na.rm=TRUE))  %>%
+  ungroup()
+res3 <- outliers_mad(x = tabla.ind.Floor$mSesgoRel ,na.rm=TRUE)
+#plot_outliers_mad(res3,x=tabla.ind.Floor$mSesgoRel,pos_display=TRUE)
+tabla.ind.Floor[res3$outliers_pos,] 
+
+# 1 - ABS bias
+
+tabla.ind.Eye <- results_tbl %>% 
+  filter(condition == "Ear level") %>% 
+  group_by(subject,condition) %>%
+  summarise(mSesgoAbs  = mean(abs_bias,na.rm=TRUE))  %>%
+  ungroup()
+res3 <- outliers_mad(x = tabla.ind.Eye$mSesgoAbs ,na.rm=TRUE)
+#plot_outliers_mad(res3,x=tabla.ind.Eye$mSesgoAbs,pos_display=TRUE)
+tabla.ind.Eye[res3$outliers_pos,] 
+
+tabla.ind.Floor <- results_tbl %>% 
+  filter(condition == "Floor level") %>% 
+  group_by(subject,condition) %>%
+  summarise(mSesgoAbs  = mean(abs_bias,na.rm=TRUE))  %>%
+  ungroup()
+res3 <- outliers_mad(x = tabla.ind.Floor$mSesgoAbs ,na.rm=TRUE)
+#plot_outliers_mad(res3,x=tabla.ind.Floor$mSesgoAbs,pos_display=TRUE)
+tabla.ind.Floor[res3$outliers_pos,]
+```
+
+## Results
+
+Figure 2. (a) Verbal Reported auditory distance of the target as a function of the target’s distances. Mean responses (±SEM: standard error of the mean) for the ear level condition (dark gray) and floor level condition (dark yellow or light grey in the printed version) participants are plotted as solid lines fitted by linear mixed-effect model (LMEM). Each thin curve represents a single subject. The grey dashed line indicates perfect performance (response = true distance). (b) Relative signed bias collapsed across distances (mean ± SEM) for both conditions. Each point represents a single subject. (c) Standard deviation intra-subjects as a function of the target’s distances (mean ± SEM). Mean responses participants are plotted as solid lines. (d) Standard deviation collapsed across distance (mean ± SEM) for both conditions.  Each point represents a single subject.
+```{r fig-margin2, fig.margin=TRUE, fig.dim = c(8, 6), fig.align="center"}
+#Distance
+#percived_distance and target_distance in log10()
+m.Dist <-  lme(percived_distance ~ target_distance*condition,     random = ~target_distance|subject,    data = results_tbl)
+
+results_tbl$Predsubject = fitted(m.Dist, level=1)
+results_tbl$PredPob    = fitted(m.Dist, level=0)
+
+
+
+  eq1 <- substitute("Ear level"~~~~~~italic(y) == a %.% italic(X)^italic(b), 
+                 list(a = 0.43,
+                      b = 1.01))
+  eq2 <- substitute("Floor level"~~~italic(y) == a %.% italic(X)^italic(b), 
+                    list(a = 0.44,
+                         b = 1.02))
+
+  
+tabla.pob = results_tbl %>% group_by(target_distance_lin,condition) %>%
+                        summarise(Mperc_dist  = mean(perc_dist))  %>%
+                        ungroup()
+
+
+cbPalette <- c("#000000","#E69F00","#009E73", "#999999", "#D55E00", "#0072B2", "#CC79A7", "#F0E442")
+f1 <- ggplot(tabla.pob, aes(x=target_distance_lin, y =Mperc_dist, group = condition)) + 
+
+  geom_line(data = results_tbl, aes(x=target_distance_lin, y = 10^PredPob, color = condition), size = 1.5) +
+  geom_abline(intercept = 0, slope = 1, linetype=2) +
+  geom_line(data = results_tbl, mapping = aes(x=target_distance_lin, y=perc_dist,group = interaction(subject,condition), color = condition ) , alpha=.4, size=0.4)+
+  scale_colour_manual(values = cbPalette) + 
+  scale_fill_manual(values = cbPalette) + 
+  geom_text(x = .5, y = .9, label = as.character(as.expression(eq1)), parse = TRUE, size = 4, color = "#000000")+
+  geom_text(x = .5, y = .76, label = as.character(as.expression(eq2)), parse = TRUE, size = 4, color = "#E69F00")+
+  scale_x_log10(name="Distance source (m)", breaks=c(0,1,2.4,3.6,4.8,6,7), labels=c("",1,2.4,3.6,4.8,6,""), minor_breaks=NULL, limits = c(-2.3,6.1)) +
+  scale_y_log10(name="Perceived distance (m)",  breaks=c(0,1,2.4,3.6,4.8,6,7), labels=c("",1,2.4,3.6,4.8,6,""), minor_breaks=NULL, limits = c(-2,8)) +
+  theme_pubr(base_size = 12, margin = TRUE)+
+  theme(legend.position = "top",
+        legend.title = element_blank())
+
+## Bias signed
+f2 <- results_tbl %>% 
+  group_by(subject,condition) %>%
+  summarise(mSesgoRel  = mean(rel_bias)) %>%
+  ungroup() %>%
+  ggplot(aes(x = condition,y = 100*mSesgoRel,colour = condition, fill = condition)) +
+  geom_point(alpha = 0.4, 
+             position = position_jitterdodge(jitter.width = .3,
+                                             jitter.height = 0,
+                                             dodge.width = 1 )) +
+  scale_colour_manual(values = cbPalette) + 
+  scale_fill_manual(values = cbPalette) + 
+  geom_abline(slope = 0, 
+              intercept = 0, 
+              alpha = 0.5, 
+              linetype = "dashed") +
+  stat_summary(fun.data = "mean_se", 
+               geom = "bar", 
+               alpha = .4, 
+               position = position_dodge(width = 1)) +
+  stat_summary(fun.data = "mean_se", 
+               geom = "linerange",  
+               size=2, 
+               position = position_dodge(width = 1)) + 
+  labs(x = "Condition", 
+       y = "Relative signed \nbias [%]") +
+  theme_pubr(base_size = 12, margin = TRUE)+
+  theme(legend.position = "none")
+
+# Response variability
+## Intra-subject
+tabla.ind.var <- results_tbl %>% 
+  group_by(target_distance_lin,condition) %>%
+  summarise(mSD = mean(perc_dist_sd),
+            SdSd = sd(perc_dist_sd),
+            n = n())  %>%
+  ungroup()
+
+f3 <- ggplot(tabla.ind.var, aes(x=target_distance_lin, y =mSD, group = condition, color = condition)) + 
+  geom_point()+ 
+  geom_line(size = 1)+
+  scale_colour_manual(values = cbPalette) + 
+  scale_fill_manual(values = cbPalette) + 
+  geom_errorbar(data=tabla.ind.var,alpha = 2, width=0, size=1,
+                mapping=aes(ymin = mSD - (SdSd/sqrt(n)), 
+                            ymax = mSD + (SdSd/sqrt(n)),
+                            color=condition))+ 
+  geom_abline(intercept = 0, slope = 0, linetype=2) +
+  scale_y_log10(name="Standard deviation (m)\n +/- SEM Intra-subject", breaks=c(0,0.2,0.3,0.4,0.5), labels=c(0,0.2,0.3,0.4,0.5), minor_breaks=NULL, limits = c(-0.1,0.5)) +
+  scale_x_log10(name="Distance source (m)",  breaks=c(2.4,3.6,4.8,6), labels=c(2.4,3.6,4.8,6), minor_breaks=NULL, limits = c(2.3,6.1)) +
+  theme_pubr(base_size = 12, margin = TRUE)+
+  theme(legend.position = "top",
+        legend.title = element_blank())
+
+
+## Intra-Sujeto colapsado
+f4 <- results_tbl %>% 
+  group_by(subject,condition) %>%
+  summarise(mDist_perc = mean(perc_dist),
+            mSesgoRel  = mean(rel_bias),
+            mSD = mean(perc_dist_sd))  %>%
+  ungroup() %>%
+  ggplot(aes(x = condition,y = 100*mSD, colour = condition, fill = condition)) +
+  geom_point(alpha = 0.4, 
+             position = position_jitterdodge(jitter.width = .3,
+                                             jitter.height = 0,
+                                             dodge.width = 1 )) +
+  scale_colour_manual(values = cbPalette) + 
+  scale_fill_manual(values = cbPalette) + 
+  geom_abline(slope = 0, 
+              intercept = 0, 
+              alpha = 0.5, 
+              linetype = "dashed") +
+  stat_summary(fun.data = "mean_se", 
+               geom = "bar", 
+               alpha = .4, 
+               position = position_dodge(width = 1)) +
+  stat_summary(fun.data = "mean_se", 
+               geom = "linerange",  
+               size=2, 
+               position = position_dodge(width = 1)) + 
+  labs(x = "Condition", 
+       y = "Collapsed standard\ndeviation [%] Intra-subject") +
+  theme_pubr(base_size = 12, margin = TRUE)+
+  theme(legend.position = "none")
+
+
+# Unifico graficos en una sola figura
+Figure2 = ggarrange(f1,f2,f3,f4,
+                    labels = c("a", "b","c","d"),
+                    ncol = 2, nrow = 2,
+                    common.legend = TRUE, legend="top", align = "hv")
+Figure2
+
+
+
+```
+
+Distance estimation
+
+```{r analysis_distance, warning=FALSE}
+m.Dist <- lmer(percived_distance ~ target_distance*condition + (target_distance|subject), 
+                       data = results_tbl )
+ggcoefstats(m.Dist, output = "tidy") %>% select(-label)
+anova(m.Dist)
+
+
+
+```
+
+Bias analysis
+Signed
+```{r analysis_bias}
+tabla.ind.summ <- results_tbl %>% 
+  group_by(subject,condition) %>%
+  summarise(mSesgoRel  = mean(rel_bias),
+            mSesgoAbs = mean(abs_bias),
+            mSD = mean(perc_dist_sd))  %>%
+  ungroup()
+
+tabla.ind.summ$SignedBias = tabla.ind.summ$mSesgoRel
+
+# Signed Bias
+
+m.RelativBias <- lm(SignedBias ~ condition, 
+             data = tabla.ind.summ)
+ggcoefstats(m.RelativBias, output = "tidy") %>% select(-label)
+anova(m.RelativBias)
+
+```
+Bias analysis
+Unsigned
+```{r analysis_ubias}
+## Unsigned Bias
+tabla.ind.summ$UnsignedBias = tabla.ind.summ$mSesgoAbs
+
+m.AbsBias <- lm(mSesgoAbs ~ condition, 
+             data = tabla.ind.summ)
+ggcoefstats(m.AbsBias, output = "tidy") %>% select(-label)
+anova(m.AbsBias)
+
+
+
+```
+
+Response variability
+Intra-subject
+```{r analysis_variability}
+
+results_tbl$Standard_Deviation    = log10(results_tbl$perc_dist_sd)
+results_tbl <- results_tbl[!is.infinite(results_tbl$Standard_Deviation),]
+
+m.Var <- lmer(Standard_Deviation ~ target_distance*condition + (target_distance|subject), 
+               data = results_tbl )
+ggcoefstats(m.Var, output = "tidy") %>% select(-label)
+anova(m.Var)
+
+```
+
+Collapsed variability  
+Intra-subject
+```{r analysis_variability_collapsed}
+tabla.ind.summ$Standard_Deviation_Collapsed = tabla.ind.summ$mSD
+
+m.VarCol <- lm(Standard_Deviation_Collapsed ~ condition, 
+                    data = tabla.ind.summ)
+ggcoefstats(m.VarCol, output = "tidy") %>% select(-label)
+anova(m.VarCol)
+
+```
